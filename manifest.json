@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "cucu0628.dashboard",
   "name": "Dashboard",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "author": "cucu0628",
   "license": "MIT",
   "description": "Clock with calendar, media, system and weather dashboard",
@@ -19,13 +19,19 @@
     "allowMultiple": false,
     "defaultSection": "center",
     "defaults": {
-      "format": "dddd HH:mm"
+      "format": "dddd HH:mm",
+      "verticalFormat": "HH\n—\nmm"
     },
     "schema": [
       {
         "key": "format",
         "type": "string",
         "label": "Clock format"
+      },
+      {
+        "key": "verticalFormat",
+        "type": "string",
+        "label": "Vertical clock format"
       }
     ]
   }

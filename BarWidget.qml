@@ -9,9 +9,15 @@ BarWidget {
   moduleName: "cucu0628.dashboard"
 
   property date displayDate: clock.date
-  readonly property string displayText: Qt.formatDateTime(displayDate, setting("format", "dddd HH:mm"))
+  readonly property string activeFormat: vertical
+    ? setting("verticalFormat", "HH\n—\nmm")
+    : setting("format", "dddd HH:mm")
+  readonly property string displayText: Qt.formatDateTime(displayDate, activeFormat)
+  readonly property var verticalLines: displayText.split("\n")
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
   readonly property real openPanelIndicatorWidth: button.labelWidth
+  readonly property real openPanelIndicatorHeight: root.verticalLines.length * Style.bar.iconSlot
+  readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
 
   function open() { if (panelLoader.item) panelLoader.item.open() }
   function close() { if (panelLoader.item) panelLoader.item.close() }
@@ -60,11 +66,33 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.displayText
+    text: root.vertical ? "" : root.displayText
+    labelVisible: !root.vertical
+    hasVisualContent: root.vertical ? root.verticalLines.length > 0 : text !== ""
+    fixedHeight: root.vertical ? root.verticalLines.length * Style.bar.iconSlot : -1
     horizontalMargin: 8.75
     verticalPadding: 8.75
     onPressed: function(mouseButton) {
       if (mouseButton === Qt.LeftButton) root.togglePanel()
+    }
+
+    Column {
+      visible: root.vertical
+      anchors.fill: parent
+
+      Repeater {
+        model: root.verticalLines
+
+        OpticalGlyph {
+          required property string modelData
+          width: button.width
+          height: Style.bar.iconSlot
+          text: modelData
+          fontFamily: button.fontFamily
+          fontSize: modelData.length > 3 ? button.fontSize * 0.9 : button.fontSize
+          color: button.foreground
+        }
+      }
     }
   }
 }

@@ -11,6 +11,7 @@ Media, and Weather views.
 ### Top Bar
 
 - Configurable day and time format.
+- Stacked clock rendering for left and right vertical bars.
 - Open or close the dashboard with a left click.
 - Uses the active Omarchy theme colors, font, spacing, and borders.
 - Only one widget instance can be placed on the bar.
@@ -132,6 +133,13 @@ The `format` setting accepts a Qt date and time format.
 | `ddd HH:mm` | `Sat 12:30` |
 | `HH:mm` | `12:30` |
 | `yyyy-MM-dd HH:mm` | `2026-08-15 12:30` |
+
+For a vertical bar, use `verticalFormat`. The default value renders the hour,
+a separator, and the minutes as three stacked bar slots:
+
+```json
+"verticalFormat": "HH\n—\nmm"
+```
 
 ## Usage
 
