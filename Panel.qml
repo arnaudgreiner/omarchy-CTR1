@@ -32,6 +32,12 @@ Panel {
   readonly property var barIdentity: hostWidget || root
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+  // Keep the panel tied to the active Omarchy palette: the accent is never
+  // hard-coded, while the dark fill and subdued tracks remain legible.
+  readonly property color accent: Color.accent
+  readonly property color panelFill: Style.normalFillFor(root.foreground, root.accent)
+  readonly property color mutedForeground: Qt.darker(root.foreground, 1.5)
+  readonly property color meterTrack: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
   readonly property var players: Mpris.players ? Mpris.players.values : []
   readonly property var sourcePlayers: {
     var direct = []
@@ -168,16 +174,24 @@ Panel {
   }
 
   component MutedText: Text {
-    color: Qt.darker(root.foreground, 1.5)
+    color: root.mutedForeground
     font.family: root.fontFamily
     font.pixelSize: Style.font.bodySmall
   }
 
+  component HeaderText: Text {
+    color: root.mutedForeground
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.caption
+    font.bold: true
+    font.letterSpacing: 1
+  }
+
   component Card: BorderSurface {
-    color: Style.normalFillFor(root.foreground, Color.accent)
-    borderSpec: Border.controlSpec("normal", root.foreground, Color.accent)
-    radius: Style.cornerRadius
-    padding: Style.space(14)
+    color: root.panelFill
+    borderSpec: Border.controlSpec("selected", root.foreground, root.accent)
+    radius: 0
+    padding: Style.space(18)
   }
 
   component SystemMetric: Item {
@@ -217,13 +231,13 @@ Panel {
       anchors.right: parent.right
       anchors.bottom: parent.bottom
       height: Style.space(7)
-      radius: Style.cornerRadius > 0 ? height / 2 : 0
-      color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
+      radius: height / 2
+      color: root.meterTrack
       Rectangle {
         width: parent.width * Math.max(0, Math.min(1, value / 100))
         height: parent.height
         radius: parent.radius
-        color: Style.selectedStateColor(root.foreground, Color.accent)
+        color: Style.selectedStateColor(root.foreground, root.accent)
         Behavior on width { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
       }
     }
@@ -325,9 +339,17 @@ Panel {
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
-      Column {
+      Rectangle {
         anchors.fill: parent
-        spacing: Style.space(14)
+        color: root.panelFill
+        border.width: 1
+        border.color: root.accent
+        radius: 0
+
+        Column {
+          anchors.fill: parent
+          anchors.margins: Style.space(18)
+          spacing: Style.space(16)
 
         Row {
           id: tabs
@@ -342,12 +364,12 @@ Panel {
               required property int index
               width: (tabs.width - tabs.spacing * 2) / 3
               height: tabs.height
-              radius: Style.cornerRadius
+              radius: 0
               color: root.currentView === index
-                ? Style.selectedFillFor(root.foreground, Color.accent)
-                : (tabMouse.containsMouse ? Style.hoverFillFor(root.foreground, Color.accent) : "transparent")
-              border.width: root.currentView === index ? Style.spacing.hairline : 0
-              border.color: Style.selectedBorderFor(root.foreground, Color.accent)
+                ? Style.selectedFillFor(root.foreground, root.accent)
+                : (tabMouse.containsMouse ? Style.hoverFillFor(root.foreground, root.accent) : "transparent")
+              border.width: root.currentView === index ? 1 : 0
+              border.color: root.accent
               LabelText {
                 anchors.centerIn: parent
                 text: modelData
@@ -497,9 +519,9 @@ Panel {
                     width: Style.space(118)
                     height: Style.space(118)
                     anchors.horizontalCenter: parent.horizontalCenter
-                    radius: Style.cornerRadius
-                    color: Style.normalFillFor(root.foreground, Color.accent)
-                    borderSpec: Border.controlSpec("normal", root.foreground, Color.accent)
+                    radius: 0
+                    color: root.panelFill
+                    borderSpec: Border.controlSpec("selected", root.foreground, root.accent)
                     Image {
                       id: overviewAlbumArt
                       anchors.fill: parent
@@ -569,7 +591,7 @@ Panel {
                 anchors.fill: parent
                 anchors.margins: parent.contentLeftInset
                 spacing: Style.space(8)
-                MutedText { text: "SYSTEM STATUS"; font.letterSpacing: 1 }
+                HeaderText { text: "SYSTEM STATUS" }
                 Row {
                   width: parent.width
                   spacing: Style.space(24)
@@ -615,11 +637,11 @@ Panel {
                       width: (sourceSelector.width - sourceSelector.spacing * Math.max(0, root.sourceOptions.length - 1))
                         / Math.max(1, root.sourceOptions.length)
                       height: sourceSelector.height
-                      radius: Style.cornerRadius
+                      radius: 0
                       color: selected
-                        ? Style.selectedFillFor(root.foreground, Color.accent)
-                        : (sourceMouse.containsMouse ? Style.hoverFillFor(root.foreground, Color.accent) : Style.normalFillFor(root.foreground, Color.accent))
-                      borderSpec: Border.controlSpec(selected ? "selected" : (sourceMouse.containsMouse ? "hover-cursor" : "normal"), root.foreground, Color.accent)
+                        ? Style.selectedFillFor(root.foreground, root.accent)
+                        : (sourceMouse.containsMouse ? Style.hoverFillFor(root.foreground, root.accent) : root.panelFill)
+                      borderSpec: Border.controlSpec(selected ? "selected" : (sourceMouse.containsMouse ? "hover-cursor" : "normal"), root.foreground, root.accent)
 
                       LabelText {
                         anchors.fill: parent
@@ -648,9 +670,9 @@ Panel {
                 width: Style.space(160)
                 height: Style.space(160)
                 anchors.horizontalCenter: parent.horizontalCenter
-                radius: Style.cornerRadius
-                color: Style.normalFillFor(root.foreground, Color.accent)
-                borderSpec: Border.controlSpec("normal", root.foreground, Color.accent)
+                radius: 0
+                color: root.panelFill
+                borderSpec: Border.controlSpec("selected", root.foreground, root.accent)
                 Image { id: mediaAlbumArt; anchors.fill: parent; anchors.margins: Style.space(3); source: root.player && root.player.trackArtUrl ? root.player.trackArtUrl : ""; fillMode: Image.PreserveAspectCrop; visible: source !== ""; asynchronous: true }
                 LabelText { anchors.centerIn: parent; visible: !mediaAlbumArt.visible; text: "󰝚"; font.pixelSize: 56 }
               }
@@ -796,4 +818,5 @@ Panel {
       }
     }
   }
+}
 }
