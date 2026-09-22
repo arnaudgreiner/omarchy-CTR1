@@ -32,6 +32,18 @@ Panel {
   property real latitude: NaN
   property real longitude: NaN
   property string weatherLocation: ""
+  property var marketQuotes: []
+  property var marketSymbols: []
+  property string marketPrimarySymbol: "BE"
+  property bool marketDataEnabled: false
+  property int marketRefreshIntervalSec: 900
+  property bool marketRefreshing: false
+  property string marketState: "waiting"
+  property string marketLastError: ""
+  property date marketLastUpdated: new Date(0)
+  property real marketLastRequestMs: 0
+  readonly property string marketHelperPath: Quickshell.env("HOME") + "/.config/omarchy/plugins/io.github.tcballard.omarchy-markets/scripts/fetch_quotes.py"
+  readonly property string marketCacheFile: (Quickshell.env("XDG_CACHE_HOME") || Quickshell.env("HOME") + "/.cache") + "/omarchy-CTR1/markets-v1.json"
   property real sampledPosition: 0
   property string selectedPlayerKey: ""
 
@@ -86,6 +98,7 @@ Panel {
     viewMonth = today.getMonth()
     refreshSystem()
     weatherFile.reload()
+    marketSettingsFile.reload()
     controller.show()
   }
 
@@ -224,6 +237,120 @@ Panel {
     } catch (e) {}
   }
 
+  function normalizeMarketSymbols(value) {
+    var values = String(value || "").split(",")
+    var result = []
+    for (var i = 0; i < values.length && result.length < 12; i++) {
+      var symbol = String(values[i] || "").trim().toUpperCase()
+      if (symbol !== "" && result.indexOf(symbol) === -1) result.push(symbol)
+    }
+    return result
+  }
+
+  function configureFromMarketsSettings(raw) {
+    try {
+      var settings = JSON.parse(String(raw || "{}"))
+      var entries = settings && settings.bar && settings.bar.layout && settings.bar.layout.center
+        ? settings.bar.layout.center : []
+      var widget = null
+      for (var i = 0; i < entries.length; i++) {
+        if (entries[i] && entries[i].id === "io.github.tcballard.omarchy-markets") {
+          widget = entries[i]
+          break
+        }
+      }
+      if (!widget) throw new Error("Markets widget is not configured")
+      marketSymbols = normalizeMarketSymbols(widget.symbols)
+      marketPrimarySymbol = String(widget.primarySymbol || marketSymbols[0] || "").trim().toUpperCase()
+      marketDataEnabled = widget.dataEnabled === true
+      var configuredInterval = Number(widget.refreshIntervalSec)
+      marketRefreshIntervalSec = isFinite(configuredInterval)
+        ? Math.max(300, Math.min(3600, Math.round(configuredInterval))) : 900
+      if (!marketDataEnabled || marketSymbols.length === 0) {
+        marketState = marketQuotes.length > 0 ? "stale" : "waiting"
+        return
+      }
+      refreshMarketsIfStale()
+    } catch (error) {
+      marketDataEnabled = false
+      marketLastError = "MARKETS SETTINGS UNAVAILABLE"
+      marketState = marketQuotes.length > 0 ? "stale" : "error"
+    }
+  }
+
+  function marketQuote(symbol) {
+    for (var i = 0; i < marketQuotes.length; i++)
+      if (String(marketQuotes[i].symbol || "").toUpperCase() === String(symbol || "").toUpperCase()) return marketQuotes[i]
+    return null
+  }
+
+  function formatMarketPrice(quote) {
+    var rawPrice = quote && quote.regularMarketPrice !== undefined
+      ? quote.regularMarketPrice : (quote ? quote.price : NaN)
+    if (!isFinite(Number(rawPrice))) return "--"
+    var price = Number(rawPrice)
+    var digits = price >= 1 ? 2 : 4
+    return price.toLocaleString(Qt.locale(), "f", digits) + (quote.currency ? " " + quote.currency : "")
+  }
+
+  function formatMarketChange(quote) {
+    if (!quote || !isFinite(Number(quote.changePercent))) return "--"
+    var percent = Number(quote.changePercent)
+    return (percent > 0 ? "+" : "") + percent.toFixed(2) + "%"
+  }
+
+  function marketChangeColor(quote) {
+    var change = quote ? Number(quote.changePercent) : NaN
+    if (change > 0) return "#30d158"
+    if (change < 0) return "#ff453a"
+    return root.foreground
+  }
+
+  function formatFreshness(value) {
+    var timestamp = value instanceof Date ? value.getTime() : Date.parse(String(value || ""))
+    if (!isFinite(timestamp) || timestamp <= 0) return "NOT UPDATED"
+    var seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000))
+    if (seconds < 60) return "UPDATED NOW"
+    if (seconds < 3600) return "UPDATED " + Math.floor(seconds / 60) + "M AGO"
+    return "UPDATED " + Math.floor(seconds / 3600) + "H AGO"
+  }
+
+  function refreshMarketsIfStale() {
+    var updated = marketLastUpdated instanceof Date ? marketLastUpdated.getTime() : 0
+    if (updated <= 0 || Date.now() - updated >= marketRefreshIntervalSec * 1000) reloadMarkets("stale")
+  }
+
+  function reloadMarkets(trigger) {
+    if (!marketDataEnabled || marketSymbols.length === 0 || marketProcess.running) return false
+    var now = Date.now()
+    if (String(trigger || "") === "manual" && now - marketLastRequestMs < 30000) return false
+    marketLastRequestMs = now
+    marketRefreshing = true
+    marketLastError = ""
+    if (marketQuotes.length === 0) marketState = "loading"
+    marketProcess.command = ["/usr/bin/python3", marketHelperPath, "--timeout", "8", "--symbols",
+      marketSymbols.join(","), "--range", "1d", "--cache-file", marketCacheFile]
+    marketProcess.running = true
+    return true
+  }
+
+  function parseMarketResponse(raw) {
+    marketRefreshing = false
+    try {
+      var response = JSON.parse(String(raw || "{}"))
+      var quotes = Array.isArray(response.quotes) ? response.quotes : []
+      if (quotes.length === 0) throw new Error("No quotes returned")
+      marketQuotes = quotes
+      var generated = new Date(response.generatedAt || Date.now())
+      marketLastUpdated = isNaN(generated.getTime()) ? new Date() : generated
+      marketState = (response.errors && response.errors.length > 0) ? "partial" : "ready"
+      marketLastError = response.errors && response.errors.length > 0 ? "SOME SYMBOLS UNAVAILABLE" : ""
+    } catch (error) {
+      marketState = marketQuotes.length > 0 ? "stale" : "error"
+      marketLastError = "MARKET DATA UNAVAILABLE"
+    }
+  }
+
   component LabelText: Text {
     color: root.foreground
     font.family: root.fontFamily
@@ -309,6 +436,30 @@ Panel {
     onFileChanged: reload()
   }
 
+  FileView {
+    id: marketSettingsFile
+    path: Quickshell.env("HOME") + "/.config/omarchy/shell.json"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.configureFromMarketsSettings(text())
+    onFileChanged: reload()
+  }
+
+  Process {
+    id: marketProcess
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.parseMarketResponse(text)
+    }
+    onExited: function(exitCode) {
+      if (exitCode !== 0 && root.marketRefreshing) {
+        root.marketRefreshing = false
+        root.marketState = root.marketQuotes.length > 0 ? "stale" : "error"
+        root.marketLastError = "MARKET DATA UNAVAILABLE"
+      }
+    }
+  }
+
   Process {
     id: systemProcess
     command: ["bash", "-lc", "read _ u n s i w irq sirq st _ < /proc/stat; t1=$((u+n+s+i+w+irq+sirq+st)); z1=$((i+w)); sleep 0.25; read _ u n s i w irq sirq st _ < /proc/stat; t2=$((u+n+s+i+w+irq+sirq+st)); z2=$((i+w)); cpu=$((100*((t2-t1)-(z2-z1))/(t2-t1))); mem=$(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{printf \"%.0f\",100*(t-a)/t}' /proc/meminfo); disk=$(df -P / | awk 'NR==2{gsub(/%/,\"\",$5);print $5}'); printf '%s %s %s\\n' \"$cpu\" \"$mem\" \"$disk\""]
@@ -383,6 +534,14 @@ Panel {
     onTriggered: root.loadWeather()
   }
 
+  Timer {
+    interval: 30000
+    running: root.opened && root.currentView === 3
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.refreshMarketsIfStale()
+  }
+
   SystemClock {
     precision: SystemClock.Minutes
     onDateChanged: root.today = date
@@ -424,11 +583,11 @@ Panel {
           spacing: Style.space(8)
 
           Repeater {
-            model: ["OVERVIEW", "MEDIA", "WEATHER"]
+            model: ["OVERVIEW", "MEDIA", "WEATHER", "MARKETS"]
             Rectangle {
               required property string modelData
               required property int index
-              width: (tabs.width - tabs.spacing * 2) / 3
+              width: (tabs.width - tabs.spacing * 3) / 4
               height: tabs.height
               radius: 0
               color: root.currentView === index
@@ -961,6 +1120,135 @@ Panel {
                       }
                     }
                   }
+                }
+              }
+            }
+          }
+
+          Item {
+            visible: root.currentView === 3
+            anchors.fill: parent
+
+            Column {
+              width: Math.min(parent.width, Style.space(650))
+              anchors.centerIn: parent
+              spacing: Style.space(12)
+
+              Card {
+                id: marketPrimaryCard
+                width: parent.width
+                height: Style.space(116)
+                property var primaryQuote: root.marketQuote(root.marketPrimarySymbol)
+                Column {
+                  anchors.fill: parent
+                  anchors.margins: parent.contentLeftInset
+                  spacing: Style.space(6)
+                  Row {
+                    width: parent.width
+                    HeaderText { text: "PRIMARY · " + root.marketPrimarySymbol }
+                    MutedText {
+                      width: parent.width - Style.space(170)
+                      text: root.formatFreshness(root.marketLastUpdated) + " · " + root.marketState.toUpperCase()
+                      horizontalAlignment: Text.AlignRight
+                      font.bold: true
+                      font.letterSpacing: 1
+                      elide: Text.ElideLeft
+                    }
+                  }
+                  Rectangle { width: parent.width; height: Style.spacing.hairline; color: root.foreground; opacity: 0.12 }
+                  Row {
+                    width: parent.width
+                    height: Style.space(42)
+                    LabelText {
+                      width: parent.width * 0.62
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: marketPrimaryCard.primaryQuote ? String(marketPrimaryCard.primaryQuote.name || root.marketPrimarySymbol) : root.marketPrimarySymbol
+                      font.pixelSize: Style.font.title
+                      font.bold: true
+                      elide: Text.ElideRight
+                    }
+                    Column {
+                      width: parent.width * 0.38
+                      anchors.verticalCenter: parent.verticalCenter
+                      spacing: Style.space(2)
+                      LabelText {
+                        width: parent.width
+                        text: root.formatMarketPrice(marketPrimaryCard.primaryQuote)
+                        horizontalAlignment: Text.AlignRight
+                        font.pixelSize: Style.font.title
+                        font.bold: true
+                      }
+                      LabelText {
+                        width: parent.width
+                        text: root.formatMarketChange(marketPrimaryCard.primaryQuote)
+                        color: root.marketChangeColor(marketPrimaryCard.primaryQuote)
+                        horizontalAlignment: Text.AlignRight
+                        font.bold: true
+                      }
+                    }
+                  }
+                }
+                MouseArea {
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.reloadMarkets("manual")
+                }
+              }
+
+              Row {
+                width: parent.width
+                HeaderText { text: "WATCHLIST" }
+                MutedText {
+                  width: parent.width - Style.space(105)
+                  text: root.marketRefreshing ? "REFRESHING…" : (root.marketLastError || "CLICK PRIMARY CARD TO REFRESH")
+                  horizontalAlignment: Text.AlignRight
+                  font.bold: true
+                  font.letterSpacing: 1
+                  elide: Text.ElideLeft
+                }
+              }
+              Rectangle { width: parent.width; height: Style.spacing.hairline; color: root.foreground; opacity: 0.12 }
+
+              Repeater {
+                model: root.marketSymbols
+                Item {
+                  required property string modelData
+                  property var quote: root.marketQuote(modelData)
+                  width: parent.width
+                  height: Style.space(29)
+                  Row {
+                    anchors.fill: parent
+                    LabelText {
+                      width: parent.width * 0.26
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: parent.parent.modelData
+                      font.bold: parent.parent.modelData === root.marketPrimarySymbol
+                    }
+                    MutedText {
+                      width: parent.width * 0.39
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: parent.parent.quote ? String(parent.parent.quote.name || "") : "WAITING"
+                      elide: Text.ElideRight
+                    }
+                    LabelText {
+                      width: parent.width * 0.22
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: root.formatMarketPrice(parent.parent.quote)
+                      horizontalAlignment: Text.AlignRight
+                      font.bold: true
+                      elide: Text.ElideLeft
+                    }
+                    LabelText {
+                      width: parent.width * 0.13
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: root.formatMarketChange(parent.parent.quote)
+                      color: root.marketChangeColor(parent.parent.quote)
+                      horizontalAlignment: Text.AlignRight
+                      font.bold: true
+                    }
+                  }
+                  Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Style.spacing.hairline; color: root.foreground; opacity: 0.12 }
                 }
               }
             }
