@@ -21,6 +21,12 @@ Panel {
   property real cpuUsage: 0
   property real memoryUsage: 0
   property real diskUsage: 0
+  property var networkInfo: ({})
+  property real networkRxRate: 0
+  property real networkTxRate: 0
+  property real previousRxBytes: -1
+  property real previousTxBytes: -1
+  property real previousNetworkSampleMs: 0
   property var weather: null
   property var forecast: []
   property real latitude: NaN
@@ -100,6 +106,57 @@ Panel {
 
   function refreshSystem() {
     if (!systemProcess.running) systemProcess.running = true
+    if (!networkProcess.running) networkProcess.running = true
+  }
+
+  function formatBytes(value) {
+    var bytes = Math.max(0, Number(value) || 0)
+    var units = ["B", "KB", "MB", "GB", "TB"]
+    var unit = 0
+    while (bytes >= 1024 && unit < units.length - 1) {
+      bytes /= 1024
+      unit++
+    }
+    return (unit === 0 ? Math.round(bytes) : bytes.toFixed(bytes >= 100 ? 0 : 1)) + " " + units[unit]
+  }
+
+  function formatPing(value) {
+    var ping = Number(value)
+    return isFinite(ping) && ping >= 0 ? ping.toFixed(ping < 10 ? 2 : 0) + " ms" : "UNAVAILABLE"
+  }
+
+  function networkTypeLabel(info) {
+    if (!info || !info.iface) return "WAITING FOR NETWORK"
+    if (info.type === "wifi") return info.iface + " · WIFI" + (info.ssid ? " " + info.ssid : "")
+    return info.iface + " · " + String(info.type || "NETWORK").toUpperCase()
+      + (info.speed ? " " + info.speed + " Mb/s" : "")
+  }
+
+  function parseNetworkStatus(raw) {
+    var info = {}
+    var lines = String(raw || "").trim().split(/\n/)
+    for (var i = 0; i < lines.length; i++) {
+      var separator = lines[i].indexOf("\t")
+      if (separator <= 0) continue
+      var key = lines[i].slice(0, separator)
+      info[key] = lines[i].slice(separator + 1)
+    }
+
+    var rx = Number(info.rx_bytes)
+    var tx = Number(info.tx_bytes)
+    var now = Date.now()
+    var elapsedSeconds = (now - previousNetworkSampleMs) / 1000
+    if (isFinite(rx) && isFinite(tx) && previousRxBytes >= 0 && previousTxBytes >= 0 && elapsedSeconds > 0) {
+      networkRxRate = Math.max(0, (rx - previousRxBytes) / elapsedSeconds)
+      networkTxRate = Math.max(0, (tx - previousTxBytes) / elapsedSeconds)
+    } else {
+      networkRxRate = 0
+      networkTxRate = 0
+    }
+    if (isFinite(rx)) previousRxBytes = rx
+    if (isFinite(tx)) previousTxBytes = tx
+    previousNetworkSampleMs = now
+    networkInfo = info
   }
 
   function mediaAction(action) {
@@ -268,6 +325,15 @@ Panel {
   }
 
   Process {
+    id: networkProcess
+    command: ["omarchy-network-status", "--verbose"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.parseNetworkStatus(text)
+    }
+  }
+
+  Process {
     id: weatherProcess
     stdout: StdioCollector {
       waitForEnd: true
@@ -406,7 +472,7 @@ Panel {
 
             Row {
               width: parent.width
-              height: parent.height - Style.space(126)
+              height: parent.height - Style.space(296)
               spacing: Style.space(14)
 
               Card {
@@ -598,6 +664,91 @@ Panel {
                   SystemMetric { width: (parent.width - parent.spacing * 2) / 3; label: "CPU"; icon: "󰍛"; value: root.cpuUsage }
                   SystemMetric { width: (parent.width - parent.spacing * 2) / 3; label: "MEMORY"; icon: "󰘚"; value: root.memoryUsage }
                   SystemMetric { width: (parent.width - parent.spacing * 2) / 3; label: "DISK"; icon: "󰋊"; value: root.diskUsage }
+                }
+              }
+            }
+
+            Card {
+              width: parent.width
+              height: Style.space(156)
+              Column {
+                anchors.fill: parent
+                anchors.margins: parent.contentLeftInset
+                spacing: Style.space(5)
+
+                Row {
+                  width: parent.width
+                  HeaderText { text: "NETWORK" }
+                  LabelText {
+                    width: parent.width - Style.space(100)
+                    horizontalAlignment: Text.AlignRight
+                    text: root.networkTypeLabel(root.networkInfo)
+                    font.bold: true
+                    font.pixelSize: Style.font.bodySmall
+                    elide: Text.ElideRight
+                  }
+                }
+
+                Row {
+                  width: parent.width
+                  MutedText { text: "LOCAL IP"; font.bold: true; font.letterSpacing: 1 }
+                  LabelText {
+                    width: parent.width - Style.space(90)
+                    horizontalAlignment: Text.AlignRight
+                    text: root.networkInfo.ip
+                      ? root.networkInfo.ip + (root.networkInfo.prefix ? "/" + root.networkInfo.prefix : "")
+                        + (root.networkInfo.gateway ? "  ·  GW " + root.networkInfo.gateway : "")
+                      : "WAITING FOR NETWORK"
+                    font.bold: true
+                    elide: Text.ElideLeft
+                  }
+                }
+
+                Row {
+                  width: parent.width
+                  spacing: Style.space(18)
+                  Item {
+                    width: (parent.width - parent.spacing) / 2
+                    height: Style.space(22)
+                    MutedText { anchors.verticalCenter: parent.verticalCenter; text: "ROUTER"; font.bold: true; font.letterSpacing: 1 }
+                    LabelText {
+                      anchors.right: parent.right
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: root.formatPing(root.networkInfo.router_ping_ms)
+                      font.bold: true
+                    }
+                  }
+                  Item {
+                    width: (parent.width - parent.spacing) / 2
+                    height: Style.space(22)
+                    MutedText { anchors.verticalCenter: parent.verticalCenter; text: "INTERNET"; font.bold: true; font.letterSpacing: 1 }
+                    LabelText {
+                      anchors.right: parent.right
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: root.formatPing(root.networkInfo.internet_ping_ms)
+                      color: root.networkInfo.internet_ping_ms ? root.foreground : root.accent
+                      font.bold: true
+                    }
+                  }
+                }
+
+                Rectangle { width: parent.width; height: Style.spacing.hairline; color: root.foreground; opacity: 0.12 }
+
+                Row {
+                  width: parent.width
+                  spacing: Style.space(18)
+                  Item {
+                    width: (parent.width - parent.spacing) / 2
+                    height: Style.space(22)
+                    MutedText { anchors.verticalCenter: parent.verticalCenter; text: "RX"; font.bold: true; font.letterSpacing: 1 }
+                    LabelText { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.formatBytes(root.networkRxRate) + "/s"; font.bold: true }
+                  }
+                  Item {
+                    width: (parent.width - parent.spacing) / 2
+                    height: Style.space(22)
+                    MutedText { anchors.verticalCenter: parent.verticalCenter; text: "TX"; font.bold: true; font.letterSpacing: 1 }
+                    LabelText { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.formatBytes(root.networkTxRate) + "/s"; font.bold: true }
+                  }
                 }
               }
             }
