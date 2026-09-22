@@ -6,7 +6,7 @@ import qs.Ui
 
 BarWidget {
   id: root
-  moduleName: "cucu0628.dashboard"
+  moduleName: "omarchy-CTR1"
 
   property date displayDate: clock.date
   readonly property string activeFormat: vertical
@@ -56,7 +56,7 @@ BarWidget {
   }
 
   IpcHandler {
-    target: "cucu0628.dashboard"
+    target: "omarchy-CTR1"
     function open(): void { root.open() }
     function close(): void { root.close() }
     function toggle(): void { root.togglePanel() }

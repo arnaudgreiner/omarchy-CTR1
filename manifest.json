@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "id": "cucu0628.dashboard",
-  "name": "Dashboard",
+  "id": "omarchy-CTR1",
+  "name": "Omarchy CTR1",
   "version": "1.2.0",
-  "author": "cucu0628",
+  "author": "arnaudgreiner (fork of cucu0628/omarchy-dashboard)",
   "license": "MIT",
-  "description": "Clock with calendar, media, system and weather dashboard",
+  "description": "CTR1 dashboard for the Omarchy bar: clock, calendar, media, system and weather (fork of Asked Dashboard)",
   "kinds": [
     "bar-widget"
   ],
@@ -13,8 +13,8 @@
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "Dashboard",
-    "description": "Clock with a three-view dashboard",
+    "displayName": "CTR1",
+    "description": "Clock with a multi-view dashboard",
     "category": "Time",
     "allowMultiple": false,
     "defaultSection": "center",

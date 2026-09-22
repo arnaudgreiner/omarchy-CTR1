@@ -1,10 +1,13 @@
-# Asked Dashboard
+# Omarchy CTR1
+
+Fork of [cucu0628/omarchy-dashboard (Asked Dashboard)](https://github.com/cucu0628/omarchy-dashboard)
+— MIT, (c) cucu0628. Local additions: network / Bluetooth / audio merged into the dashboard.
 
 An Omarchy Shell bar widget that extends the centered clock with a three-view
 dashboard. The bar displays the day and time; clicking it opens the Overview,
 Media, and Weather views.
 
-![Asked Dashboard preview](https://raw.githubusercontent.com/cucu0628/omarchy-dashboard/12078f1/preview.png)
+![CTR1 preview](https://raw.githubusercontent.com/cucu0628/omarchy-dashboard/12078f1/preview.png)
 
 ## Features
 
@@ -62,13 +65,13 @@ and `qs.Ui` components.
 ### From a Git Repository
 
 ```bash
-omarchy plugin add https://github.com/cucu0628/omarchy-dashboard.git --enable --yes
+omarchy plugin add https://github.com/arnaudgreiner/omarchy-CTR1.git --enable --yes
 ```
 
 Omarchy clones the repository into:
 
 ```text
-~/.config/omarchy/plugins/cucu0628.dashboard/
+~/.config/omarchy/plugins/omarchy-CTR1/
 ```
 
 ### Manual Installation
@@ -76,14 +79,14 @@ Omarchy clones the repository into:
 Place the complete plugin directory at:
 
 ```text
-~/.config/omarchy/plugins/cucu0628.dashboard/
+~/.config/omarchy/plugins/omarchy-CTR1/
 ```
 
 Then rescan and enable it:
 
 ```bash
 omarchy-shell shell rescanPlugins
-omarchy plugin enable cucu0628.dashboard
+omarchy plugin enable omarchy-CTR1
 ```
 
 Verify the installation with:
@@ -92,7 +95,7 @@ Verify the installation with:
 omarchy-shell shell listPlugins
 ```
 
-The `cucu0628.dashboard` entry should have `enabled` set to `true`.
+The `omarchy-CTR1` entry should have `enabled` set to `true`.
 
 ## Top Bar Configuration
 
@@ -102,7 +105,7 @@ The default section is `center`. To replace the stock clock, replace the
 
 ```json
 {
-  "id": "cucu0628.dashboard",
+  "id": "omarchy-CTR1",
   "format": "dddd HH:mm"
 }
 ```
@@ -110,7 +113,7 @@ The default section is `center`. To replace the stock clock, replace the
 Set `centerAnchor` to the dashboard as well:
 
 ```json
-"centerAnchor": "cucu0628.dashboard"
+"centerAnchor": "omarchy-CTR1"
 ```
 
 Do not replace your entire `shell.json` with a short example. That file may
@@ -161,9 +164,9 @@ provide these capabilities.
 The dashboard can also be controlled directly:
 
 ```bash
-omarchy-shell cucu0628.dashboard open
-omarchy-shell cucu0628.dashboard close
-omarchy-shell cucu0628.dashboard toggle
+omarchy-shell omarchy-CTR1 open
+omarchy-shell omarchy-CTR1 close
+omarchy-shell omarchy-CTR1 toggle
 ```
 
 These commands can be used from scripts or Hyprland keybindings.
@@ -216,7 +219,7 @@ System statistics refresh every three seconds while the panel is open.
 ## File Structure
 
 ```text
-cucu0628.dashboard/
+omarchy-CTR1/
 ├── manifest.json   # Omarchy plugin metadata and widget settings
 ├── BarWidget.qml   # Top-bar clock, click handling, and IPC entry point
 ├── Panel.qml       # Dashboard UI, services, and data collection
@@ -261,17 +264,17 @@ This plugin:
 
 ```bash
 omarchy-shell shell rescanPlugins
-omarchy plugin enable cucu0628.dashboard
+omarchy plugin enable omarchy-CTR1
 omarchy restart shell
 ```
 
 Ensure that both the directory name and the manifest ID are
-`cucu0628.dashboard`.
+`omarchy-CTR1`.
 
 ### The Panel Does Not Open
 
 ```bash
-omarchy-shell cucu0628.dashboard open
+omarchy-shell omarchy-CTR1 open
 quickshell log --pid "$(pgrep -n quickshell)" --tail 100 --no-color
 ```
 
@@ -305,7 +308,7 @@ slider is disabled when the application does not support MPRIS volume control.
 
 ## Development
 
-Changes under `~/.config/omarchy/plugins/cucu0628.dashboard/` are normally
+Changes under `~/.config/omarchy/plugins/omarchy-CTR1/` are normally
 detected automatically by Omarchy Shell. To rescan manually:
 
 ```bash
@@ -336,7 +339,7 @@ quickshell log --pid "$(pgrep -n quickshell)" --tail 150 --no-color
 To update a Git-managed installation:
 
 ```bash
-omarchy plugin update cucu0628.dashboard --yes
+omarchy plugin update omarchy-CTR1 --yes
 ```
 
 If necessary, restart the Shell afterward:
@@ -350,7 +353,7 @@ omarchy restart shell
 For an Omarchy-managed installation:
 
 ```bash
-omarchy plugin remove cucu0628.dashboard
+omarchy plugin remove omarchy-CTR1
 ```
 
 If the dashboard replaced the stock clock, restore the `omarchy.clock` entry

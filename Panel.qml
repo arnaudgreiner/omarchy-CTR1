@@ -8,8 +8,8 @@ import "Model.js" as Model
 
 Panel {
   id: root
-  moduleName: "cucu0628.dashboard"
-  ipcTarget: "cucu0628.dashboard"
+  moduleName: "omarchy-CTR1"
+  ipcTarget: "omarchy-CTR1"
   manageIpc: false
 
   property var anchorItem: null
