@@ -372,10 +372,10 @@ Panel {
   }
 
   component Card: BorderSurface {
-    color: root.panelFill
-    borderSpec: Border.controlSpec("selected", root.foreground, root.accent)
-    radius: 0
-    padding: Style.space(18)
+    color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.05)
+    borderSpec: Border.controlSpec("normal", root.foreground, root.accent)
+    radius: Style.cornerRadius
+    padding: Style.space(16)
   }
 
   component SystemMetric: Item {
@@ -556,7 +556,7 @@ Panel {
     centerOnBar: true
     focusTarget: keyCatcher
     contentWidth: dashboardPanel.fittedContentWidth(Style.space(760))
-    contentHeight: dashboardPanel.fittedContentHeight(Style.space(520))
+    contentHeight: dashboardPanel.fittedContentHeight(Style.space(560))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -567,9 +567,9 @@ Panel {
       Rectangle {
         anchors.fill: parent
         color: root.panelFill
-        border.width: 1
-        border.color: root.accent
-        radius: 0
+        radius: Style.cornerRadius
+        border.width: Style.spacing.hairline
+        border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.14)
 
         Column {
           anchors.fill: parent
@@ -579,35 +579,50 @@ Panel {
         Row {
           id: tabs
           width: parent.width
-          height: Style.space(34)
-          spacing: Style.space(8)
+          height: Style.space(32)
+          spacing: 0
 
           Repeater {
             model: ["OVERVIEW", "MEDIA", "WEATHER", "MARKETS"]
-            Rectangle {
+            Item {
+              id: tabItem
               required property string modelData
               required property int index
-              width: (tabs.width - tabs.spacing * 3) / 4
+              readonly property bool active: root.currentView === index
+              width: tabs.width / 4
               height: tabs.height
-              radius: 0
-              color: root.currentView === index
-                ? Style.selectedFillFor(root.foreground, root.accent)
-                : (tabMouse.containsMouse ? Style.hoverFillFor(root.foreground, root.accent) : "transparent")
-              border.width: root.currentView === index ? 1 : 0
-              border.color: root.accent
-              LabelText {
+
+              Text {
+                id: tabLabel
                 anchors.centerIn: parent
-                text: modelData
-                font.pixelSize: Style.font.bodySmall
-                font.bold: root.currentView === index
-                font.letterSpacing: 1
+                anchors.verticalCenterOffset: -Style.space(3)
+                text: tabItem.modelData
+                textFormat: Text.PlainText
+                color: tabItem.active ? root.accent : root.mutedForeground
+                opacity: tabItem.active ? 1.0 : (tabArea.containsMouse ? 0.9 : 0.55)
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: tabItem.active
+                font.letterSpacing: 1.2
               }
+
+              Rectangle {
+                anchors.bottom: parent.bottom
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: tabItem.active ? Style.space(28) : (tabArea.containsMouse ? Style.space(14) : 0)
+                height: Style.space(2)
+                radius: height / 2
+                color: root.accent
+                opacity: tabItem.active ? 1.0 : 0.5
+                Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+              }
+
               MouseArea {
-                id: tabMouse
+                id: tabArea
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: root.currentView = index
+                onClicked: root.currentView = tabItem.index
               }
             }
           }
@@ -624,289 +639,369 @@ Panel {
           width: parent.width
           height: parent.height - tabs.height - Style.space(29)
 
-          Column {
+          Item {
             visible: root.currentView === 0
             anchors.fill: parent
-            spacing: Style.space(14)
 
-            Row {
-              width: parent.width
-              height: parent.height - Style.space(296)
-              spacing: Style.space(14)
+            Flickable {
+              id: overviewFlick
+              anchors.fill: parent
+              contentWidth: width
+              contentHeight: overviewFlow.implicitHeight
+              clip: true
+              interactive: contentHeight > height
+              boundsBehavior: Flickable.StopAtBounds
 
-              Card {
-                width: Style.space(450)
-                height: parent.height
+              Column {
+                id: overviewFlow
+                width: overviewFlick.width
+                spacing: Style.space(12)
 
-                Column {
-                  anchors.fill: parent
-                  anchors.margins: parent.contentLeftInset
-                  spacing: Style.space(7)
+                Row {
+                  width: parent.width
+                  spacing: Style.space(12)
 
-                  Row {
-                    width: parent.width
-                    height: Style.space(42)
-                    Column {
-                      width: parent.width - monthNavigation.implicitWidth
-                      spacing: Style.space(1)
-                      LabelText {
-                        text: Qt.formatDate(new Date(root.viewYear, root.viewMonth, 1), "MMMM yyyy")
-                        font.pixelSize: Style.font.heading
-                        font.bold: true
-                      }
-                      MutedText {
-                        text: Qt.formatDate(root.today, "dddd, MMMM d").toUpperCase()
-                        font.pixelSize: Style.font.caption
-                        font.letterSpacing: 1
+                  // -------- left: calendar + now playing
+                  Column {
+                    width: (parent.width - parent.spacing) * 0.55
+                    spacing: Style.space(12)
+
+                    Card {
+                      width: parent.width
+                      height: calendarBody.implicitHeight + calendarBody.y + Style.space(14)
+
+                      Column {
+                        id: calendarBody
+                        width: parent.width - parent.contentLeftInset - parent.contentRightInset
+                        x: parent.contentLeftInset
+                        y: parent.contentTopInset
+                        spacing: Style.space(7)
+
+                        Row {
+                          width: parent.width
+                          height: Style.space(40)
+                          Column {
+                            width: parent.width - monthNavigation.implicitWidth
+                            spacing: Style.space(1)
+                            LabelText {
+                              text: Qt.formatDate(new Date(root.viewYear, root.viewMonth, 1), "MMMM yyyy")
+                              textFormat: Text.PlainText
+                              font.pixelSize: Style.font.heading
+                              font.bold: true
+                            }
+                            MutedText {
+                              text: Qt.formatDate(root.today, "dddd, MMMM d").toUpperCase()
+                              textFormat: Text.PlainText
+                              font.pixelSize: Style.font.caption
+                              font.letterSpacing: 1
+                            }
+                          }
+                          Row {
+                            id: monthNavigation
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Style.space(2)
+                            PanelActionButton {
+                              size: Style.space(26)
+                              iconText: "󰅁"
+                              foreground: root.foreground
+                              fontFamily: root.fontFamily
+                              tooltipText: "Previous month"
+                              onClicked: root.moveMonth(-1)
+                            }
+                            PanelActionButton {
+                              size: Style.space(26)
+                              iconText: "󰅂"
+                              foreground: root.foreground
+                              fontFamily: root.fontFamily
+                              tooltipText: "Next month"
+                              onClicked: root.moveMonth(1)
+                            }
+                          }
+                        }
+
+                        Grid {
+                          width: parent.width
+                          columns: 7
+                          rowSpacing: Style.space(3)
+                          columnSpacing: Style.space(3)
+                          Repeater {
+                            model: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+                            MutedText {
+                              required property string modelData
+                              width: (parent.width - Style.space(18)) / 7
+                              height: Style.space(18)
+                              text: modelData
+                              textFormat: Text.PlainText
+                              horizontalAlignment: Text.AlignHCenter
+                              verticalAlignment: Text.AlignVCenter
+                              font.pixelSize: Style.font.caption
+                              font.letterSpacing: 1
+                            }
+                          }
+                          Repeater {
+                            model: root.calendarCells
+                            Rectangle {
+                              required property var modelData
+                              width: (parent.width - Style.space(18)) / 7
+                              height: Style.space(30)
+                              radius: Style.cornerRadius
+                              color: modelData.today ? Style.selectedFillFor(root.foreground, root.accent) : "transparent"
+                              border.width: modelData.today ? Style.spacing.hairline : 0
+                              border.color: Style.selectedBorderFor(root.foreground, root.accent)
+                              LabelText {
+                                anchors.centerIn: parent
+                                text: modelData.day
+                                textFormat: Text.PlainText
+                                color: modelData.inMonth
+                                  ? (modelData.weekend ? Qt.darker(root.foreground, 1.4) : root.foreground)
+                                  : Qt.darker(root.foreground, 2.1)
+                                font.bold: modelData.today
+                              }
+                            }
+                          }
+                        }
                       }
                     }
-                    Row {
-                      id: monthNavigation
-                      anchors.verticalCenter: parent.verticalCenter
-                      spacing: Style.space(2)
-                      PanelActionButton {
-                        size: Style.space(28)
-                        iconText: "󰅁"
-                        foreground: root.foreground
-                        fontFamily: root.fontFamily
-                        tooltipText: "Previous month"
-                        onClicked: root.moveMonth(-1)
-                      }
-                      PanelActionButton {
-                        size: Style.space(28)
-                        iconText: "󰅂"
-                        foreground: root.foreground
-                        fontFamily: root.fontFamily
-                        tooltipText: "Next month"
-                        onClicked: root.moveMonth(1)
-                      }
-                    }
-                  }
 
-                  Grid {
-                    width: parent.width
-                    columns: 7
-                    rowSpacing: Style.space(3)
-                    columnSpacing: Style.space(3)
-                    Repeater {
-                      model: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
-                      MutedText {
-                        required property string modelData
-                        width: (parent.width - Style.space(18)) / 7
-                        height: Style.space(20)
-                        text: modelData
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        font.pixelSize: Style.font.caption
-                        font.letterSpacing: 1
-                      }
-                    }
-                    Repeater {
-                      model: root.calendarCells
-                      Rectangle {
-                        required property var modelData
-                        width: (parent.width - Style.space(18)) / 7
-                        height: Style.space(32)
-                        radius: Style.cornerRadius
-                        color: modelData.today ? Style.selectedFillFor(root.foreground, Color.accent) : "transparent"
-                        border.width: modelData.today ? Style.spacing.hairline : 0
-                        border.color: Style.selectedBorderFor(root.foreground, Color.accent)
-                        LabelText {
-                          anchors.centerIn: parent
-                          text: modelData.day
-                          color: modelData.inMonth
-                            ? (modelData.weekend ? Qt.darker(root.foreground, 1.4) : root.foreground)
-                            : Qt.darker(root.foreground, 2.1)
-                          font.bold: modelData.today
+                    Card {
+                      width: parent.width
+                      height: nowPlayingBody.implicitHeight + nowPlayingBody.y + Style.space(14)
+
+                      Column {
+                        id: nowPlayingBody
+                        width: parent.width - parent.contentLeftInset - parent.contentRightInset
+                        x: parent.contentLeftInset
+                        y: parent.contentTopInset
+                        spacing: Style.space(8)
+
+                        HeaderText { text: "NOW PLAYING" }
+
+                        Row {
+                          width: parent.width
+                          spacing: Style.space(10)
+
+                          Rectangle {
+                            width: Style.space(56)
+                            height: Style.space(56)
+                            radius: Style.cornerRadius
+                            color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+                            Image {
+                              id: overviewAlbumArt
+                              anchors.fill: parent
+                              anchors.margins: Style.space(2)
+                              source: root.player && root.player.trackArtUrl ? root.player.trackArtUrl : ""
+                              fillMode: Image.PreserveAspectCrop
+                              visible: source !== ""
+                              asynchronous: true
+                            }
+                            LabelText {
+                              anchors.centerIn: parent
+                              visible: !overviewAlbumArt.visible
+                              text: "󰝚"
+                              font.pixelSize: 24
+                            }
+                          }
+
+                          Column {
+                            width: parent.width - Style.space(66)
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Style.space(2)
+                            LabelText {
+                              width: parent.width
+                              text: root.player ? (root.player.trackTitle || "Unknown title") : "Nothing playing"
+                              textFormat: Text.PlainText
+                              font.bold: true
+                              elide: Text.ElideRight
+                            }
+                            MutedText {
+                              width: parent.width
+                              text: root.player ? (root.player.trackArtist || root.player.identity || "") : "Start a media player"
+                              textFormat: Text.PlainText
+                              elide: Text.ElideRight
+                            }
+                          }
+                        }
+
+                        Column {
+                          width: parent.width
+                          spacing: Style.space(1)
+                          Row {
+                            width: parent.width
+                            MutedText { text: "POSITION"; font.pixelSize: Style.font.caption; font.letterSpacing: 1 }
+                            MutedText {
+                              width: parent.width - Style.space(96)
+                              horizontalAlignment: Text.AlignRight
+                              text: root.seekAvailable
+                                ? root.formatDuration(overviewSeekSlider.dragging ? overviewSeekSlider.liveValue : root.trackPosition)
+                                  + " / " + root.formatDuration(root.trackLength)
+                                : "--:-- / --:--"
+                              font.pixelSize: Style.font.caption
+                            }
+                          }
+                          PanelSlider {
+                            id: overviewSeekSlider
+                            width: parent.width
+                            bar: root.bar
+                            minimum: 0
+                            maximum: root.trackLength
+                            step: 5
+                            knobSize: 0
+                            value: root.trackPosition
+                            enabled: root.seekAvailable
+                            opacity: enabled ? 1 : 0.35
+                            onReleased: function(value) { root.seekTo(value) }
+                          }
+                        }
+
+                        Row {
+                          anchors.horizontalCenter: parent.horizontalCenter
+                          spacing: Style.space(12)
+                          PanelActionButton { size: Style.space(30); fontSize: Style.font.icon; iconText: "󰒮"; foreground: root.foreground; fontFamily: root.fontFamily; enabled: root.player && root.player.canGoPrevious; onClicked: root.mediaAction("previous") }
+                          PanelActionButton { size: Style.space(30); fontSize: Style.font.iconLarge; iconText: root.player && root.player.isPlaying ? "󰏤" : "󰐊"; foreground: root.foreground; fontFamily: root.fontFamily; enabled: !!root.player; onClicked: root.mediaAction("playPause") }
+                          PanelActionButton { size: Style.space(30); fontSize: Style.font.icon; iconText: "󰒭"; foreground: root.foreground; fontFamily: root.fontFamily; enabled: root.player && root.player.canGoNext; onClicked: root.mediaAction("next") }
                         }
                       }
                     }
                   }
-                }
-              }
 
-              Card {
-                width: parent.width - Style.space(464)
-                height: parent.height
-                Column {
-                  anchors.fill: parent
-                  anchors.margins: parent.contentLeftInset
-                  spacing: Style.space(8)
-
-                  MutedText {
-                    width: parent.width
-                    text: "NOW PLAYING"
-                    horizontalAlignment: Text.AlignHCenter
-                    font.letterSpacing: 1
-                  }
-
-                  BorderSurface {
-                    width: Style.space(118)
-                    height: Style.space(118)
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    radius: 0
-                    color: root.panelFill
-                    borderSpec: Border.controlSpec("selected", root.foreground, root.accent)
-                    Image {
-                      id: overviewAlbumArt
-                      anchors.fill: parent
-                      anchors.margins: Style.space(2)
-                      source: root.player && root.player.trackArtUrl ? root.player.trackArtUrl : ""
-                      fillMode: Image.PreserveAspectCrop
-                      visible: source !== ""
-                      asynchronous: true
-                    }
-                    LabelText { anchors.centerIn: parent; visible: !overviewAlbumArt.visible; text: "󰝚"; font.pixelSize: 42 }
-                  }
-
-                  LabelText {
-                    width: parent.width
-                    text: root.player ? (root.player.trackTitle || "Unknown title") : "Nothing playing"
-                    horizontalAlignment: Text.AlignHCenter
-                    font.bold: true
-                    elide: Text.ElideRight
-                  }
-                  MutedText {
-                    width: parent.width
-                    text: root.player ? (root.player.trackArtist || root.player.identity || "") : "Start a media player"
-                    horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideRight
-                  }
+                  // -------- right: system + network
                   Column {
-                    width: parent.width
-                    spacing: Style.space(1)
-                    MutedText {
+                    width: (parent.width - parent.spacing) * 0.45
+                    spacing: Style.space(12)
+
+                    Card {
                       width: parent.width
-                      horizontalAlignment: Text.AlignRight
-                      text: root.seekAvailable
-                        ? root.formatDuration(overviewSeekSlider.dragging ? overviewSeekSlider.liveValue : root.trackPosition)
-                          + " / " + root.formatDuration(root.trackLength)
-                        : "--:-- / --:--"
-                      font.pixelSize: Style.font.caption
+                      height: systemBody.implicitHeight + systemBody.y + Style.space(14)
+
+                      Column {
+                        id: systemBody
+                        width: parent.width - parent.contentLeftInset - parent.contentRightInset
+                        x: parent.contentLeftInset
+                        y: parent.contentTopInset
+                        spacing: Style.space(10)
+
+                        HeaderText { text: "SYSTEM STATUS" }
+
+                        Column {
+                          width: parent.width
+                          spacing: Style.space(8)
+                          SystemMetric { width: parent.width; label: "CPU"; icon: "󰍛"; value: root.cpuUsage }
+                          SystemMetric { width: parent.width; label: "MEMORY"; icon: "󰘚"; value: root.memoryUsage }
+                          SystemMetric { width: parent.width; label: "DISK"; icon: "󰋊"; value: root.diskUsage }
+                        }
+                      }
                     }
-                    PanelSlider {
-                      id: overviewSeekSlider
+
+                    Card {
                       width: parent.width
-                      bar: root.bar
-                      minimum: 0
-                      maximum: root.trackLength
-                      step: 5
-                      knobSize: 0
-                      value: root.trackPosition
-                      enabled: root.seekAvailable
-                      opacity: enabled ? 1 : 0.35
-                      onReleased: function(value) { root.seekTo(value) }
+                      height: networkBody.implicitHeight + networkBody.y + Style.space(14)
+
+                      Column {
+                        id: networkBody
+                        width: parent.width - parent.contentLeftInset - parent.contentRightInset
+                        x: parent.contentLeftInset
+                        y: parent.contentTopInset
+                        spacing: Style.space(8)
+
+                        Row {
+                          width: parent.width
+                          HeaderText { text: "NETWORK" }
+                          MutedText {
+                            width: parent.width - Style.space(90)
+                            horizontalAlignment: Text.AlignRight
+                            text: root.networkTypeLabel(root.networkInfo)
+                            textFormat: Text.PlainText
+                            font.bold: true
+                            font.letterSpacing: 1
+                            font.pixelSize: Style.font.caption
+                            elide: Text.ElideLeft
+                          }
+                        }
+
+                        Item {
+                          width: parent.width
+                          height: Style.space(20)
+                          MutedText { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "LOCAL IP"; font.bold: true; font.letterSpacing: 1; font.pixelSize: Style.font.caption }
+                          LabelText {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.networkInfo.ip
+                              ? root.networkInfo.ip + (root.networkInfo.prefix ? "/" + root.networkInfo.prefix : "")
+                              : "WAITING"
+                            textFormat: Text.PlainText
+                            font.bold: true
+                            font.pixelSize: Style.font.caption
+                            elide: Text.ElideLeft
+                          }
+                        }
+
+                        Item {
+                          width: parent.width
+                          height: Style.space(20)
+                          MutedText { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "GATEWAY"; font.bold: true; font.letterSpacing: 1; font.pixelSize: Style.font.caption }
+                          LabelText {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.networkInfo.gateway || "—"
+                            textFormat: Text.PlainText
+                            font.bold: true
+                            font.pixelSize: Style.font.caption
+                            elide: Text.ElideLeft
+                          }
+                        }
+
+                        Row {
+                          width: parent.width
+                          spacing: Style.space(18)
+                          Item {
+                            width: (parent.width - parent.spacing) / 2
+                            height: Style.space(20)
+                            MutedText { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "ROUTER"; font.bold: true; font.letterSpacing: 1; font.pixelSize: Style.font.caption }
+                            LabelText {
+                              anchors.right: parent.right
+                              anchors.verticalCenter: parent.verticalCenter
+                              text: root.formatPing(root.networkInfo.router_ping_ms)
+                              textFormat: Text.PlainText
+                              font.bold: true
+                              font.pixelSize: Style.font.caption
+                            }
+                          }
+                          Item {
+                            width: (parent.width - parent.spacing) / 2
+                            height: Style.space(20)
+                            MutedText { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "INTERNET"; font.bold: true; font.letterSpacing: 1; font.pixelSize: Style.font.caption }
+                            LabelText {
+                              anchors.right: parent.right
+                              anchors.verticalCenter: parent.verticalCenter
+                              text: root.formatPing(root.networkInfo.internet_ping_ms)
+                              color: root.networkInfo.internet_ping_ms ? root.foreground : root.accent
+                              textFormat: Text.PlainText
+                              font.bold: true
+                              font.pixelSize: Style.font.caption
+                            }
+                          }
+                        }
+
+                        Rectangle { width: parent.width; height: Style.spacing.hairline; color: root.foreground; opacity: 0.12 }
+
+                        Row {
+                          width: parent.width
+                          spacing: Style.space(18)
+                          Item {
+                            width: (parent.width - parent.spacing) / 2
+                            height: Style.space(20)
+                            MutedText { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "RX"; font.bold: true; font.letterSpacing: 1; font.pixelSize: Style.font.caption }
+                            LabelText { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.formatBytes(root.networkRxRate) + "/s"; textFormat: Text.PlainText; font.bold: true; font.pixelSize: Style.font.caption }
+                          }
+                          Item {
+                            width: (parent.width - parent.spacing) / 2
+                            height: Style.space(20)
+                            MutedText { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "TX"; font.bold: true; font.letterSpacing: 1; font.pixelSize: Style.font.caption }
+                            LabelText { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.formatBytes(root.networkTxRate) + "/s"; textFormat: Text.PlainText; font.bold: true; font.pixelSize: Style.font.caption }
+                          }
+                        }
+                      }
                     }
-                  }
-                  Row {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    spacing: Style.space(10)
-                    PanelActionButton { size: Style.space(34); fontSize: Style.font.icon; iconText: "󰒮"; foreground: root.foreground; fontFamily: root.fontFamily; enabled: root.player && root.player.canGoPrevious; onClicked: root.mediaAction("previous") }
-                    PanelActionButton { size: Style.space(34); fontSize: Style.font.iconLarge; iconText: root.player && root.player.isPlaying ? "󰏤" : "󰐊"; foreground: root.foreground; fontFamily: root.fontFamily; enabled: !!root.player; onClicked: root.mediaAction("playPause") }
-                    PanelActionButton { size: Style.space(34); fontSize: Style.font.icon; iconText: "󰒭"; foreground: root.foreground; fontFamily: root.fontFamily; enabled: root.player && root.player.canGoNext; onClicked: root.mediaAction("next") }
-                  }
-                }
-              }
-            }
-
-            Card {
-              width: parent.width
-              height: Style.space(112)
-              Column {
-                anchors.fill: parent
-                anchors.margins: parent.contentLeftInset
-                spacing: Style.space(8)
-                HeaderText { text: "SYSTEM STATUS" }
-                Row {
-                  width: parent.width
-                  spacing: Style.space(24)
-                  SystemMetric { width: (parent.width - parent.spacing * 2) / 3; label: "CPU"; icon: "󰍛"; value: root.cpuUsage }
-                  SystemMetric { width: (parent.width - parent.spacing * 2) / 3; label: "MEMORY"; icon: "󰘚"; value: root.memoryUsage }
-                  SystemMetric { width: (parent.width - parent.spacing * 2) / 3; label: "DISK"; icon: "󰋊"; value: root.diskUsage }
-                }
-              }
-            }
-
-            Card {
-              width: parent.width
-              height: Style.space(156)
-              Column {
-                anchors.fill: parent
-                anchors.margins: parent.contentLeftInset
-                spacing: Style.space(5)
-
-                Row {
-                  width: parent.width
-                  HeaderText { text: "NETWORK" }
-                  LabelText {
-                    width: parent.width - Style.space(100)
-                    horizontalAlignment: Text.AlignRight
-                    text: root.networkTypeLabel(root.networkInfo)
-                    font.bold: true
-                    font.pixelSize: Style.font.bodySmall
-                    elide: Text.ElideRight
-                  }
-                }
-
-                Row {
-                  width: parent.width
-                  MutedText { text: "LOCAL IP"; font.bold: true; font.letterSpacing: 1 }
-                  LabelText {
-                    width: parent.width - Style.space(90)
-                    horizontalAlignment: Text.AlignRight
-                    text: root.networkInfo.ip
-                      ? root.networkInfo.ip + (root.networkInfo.prefix ? "/" + root.networkInfo.prefix : "")
-                        + (root.networkInfo.gateway ? "  ·  GW " + root.networkInfo.gateway : "")
-                      : "WAITING FOR NETWORK"
-                    font.bold: true
-                    elide: Text.ElideLeft
-                  }
-                }
-
-                Row {
-                  width: parent.width
-                  spacing: Style.space(18)
-                  Item {
-                    width: (parent.width - parent.spacing) / 2
-                    height: Style.space(22)
-                    MutedText { anchors.verticalCenter: parent.verticalCenter; text: "ROUTER"; font.bold: true; font.letterSpacing: 1 }
-                    LabelText {
-                      anchors.right: parent.right
-                      anchors.verticalCenter: parent.verticalCenter
-                      text: root.formatPing(root.networkInfo.router_ping_ms)
-                      font.bold: true
-                    }
-                  }
-                  Item {
-                    width: (parent.width - parent.spacing) / 2
-                    height: Style.space(22)
-                    MutedText { anchors.verticalCenter: parent.verticalCenter; text: "INTERNET"; font.bold: true; font.letterSpacing: 1 }
-                    LabelText {
-                      anchors.right: parent.right
-                      anchors.verticalCenter: parent.verticalCenter
-                      text: root.formatPing(root.networkInfo.internet_ping_ms)
-                      color: root.networkInfo.internet_ping_ms ? root.foreground : root.accent
-                      font.bold: true
-                    }
-                  }
-                }
-
-                Rectangle { width: parent.width; height: Style.spacing.hairline; color: root.foreground; opacity: 0.12 }
-
-                Row {
-                  width: parent.width
-                  spacing: Style.space(18)
-                  Item {
-                    width: (parent.width - parent.spacing) / 2
-                    height: Style.space(22)
-                    MutedText { anchors.verticalCenter: parent.verticalCenter; text: "RX"; font.bold: true; font.letterSpacing: 1 }
-                    LabelText { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.formatBytes(root.networkRxRate) + "/s"; font.bold: true }
-                  }
-                  Item {
-                    width: (parent.width - parent.spacing) / 2
-                    height: Style.space(22)
-                    MutedText { anchors.verticalCenter: parent.verticalCenter; text: "TX"; font.bold: true; font.letterSpacing: 1 }
-                    LabelText { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.formatBytes(root.networkTxRate) + "/s"; font.bold: true }
                   }
                 }
               }
@@ -947,7 +1042,7 @@ Panel {
                       width: (sourceSelector.width - sourceSelector.spacing * Math.max(0, root.sourceOptions.length - 1))
                         / Math.max(1, root.sourceOptions.length)
                       height: sourceSelector.height
-                      radius: 0
+                      radius: Style.cornerRadius
                       color: selected
                         ? Style.selectedFillFor(root.foreground, root.accent)
                         : (sourceMouse.containsMouse ? Style.hoverFillFor(root.foreground, root.accent) : root.panelFill)
@@ -980,9 +1075,9 @@ Panel {
                 width: Style.space(160)
                 height: Style.space(160)
                 anchors.horizontalCenter: parent.horizontalCenter
-                radius: 0
+                radius: Style.cornerRadius
                 color: root.panelFill
-                borderSpec: Border.controlSpec("selected", root.foreground, root.accent)
+                borderSpec: Border.controlSpec("normal", root.foreground, root.accent)
                 Image { id: mediaAlbumArt; anchors.fill: parent; anchors.margins: Style.space(3); source: root.player && root.player.trackArtUrl ? root.player.trackArtUrl : ""; fillMode: Image.PreserveAspectCrop; visible: source !== ""; asynchronous: true }
                 LabelText { anchors.centerIn: parent; visible: !mediaAlbumArt.visible; text: "󰝚"; font.pixelSize: 56 }
               }
